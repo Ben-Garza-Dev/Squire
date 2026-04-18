@@ -5,6 +5,7 @@ from pkg.calculator import Calculator
 from pkg.render import format_json_output
 
 
+
 def main():
     calculator = Calculator()
     if len(sys.argv) <= 1:
@@ -23,6 +24,8 @@ def main():
             print("Error: Expression is empty or contains only whitespace.")
     except Exception as e:
         print(f"Error: {e}")
+
+    
 
 
 if __name__ == "__main__":

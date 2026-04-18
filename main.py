@@ -3,6 +3,9 @@ from dotenv import load_dotenv
 from google import genai
 import argparse
 from google.genai import types
+from prompts import system_prompt
+from call_function import available_functions, call_function
+import sys
 
 
 
@@ -25,18 +28,57 @@ def main():
 
     client = genai.Client(api_key=api_key)
 
-    response = client.models.generate_content(
-        model='gemini-2.5-flash', contents=messages
-    )
-
-    if response.usage_metadata is None:
-        raise RuntimeError(
-            "No response from api."
+    for _ in range(20):
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=messages,
+            config=types.GenerateContentConfig(
+                tools = [available_functions], system_instruction = system_prompt
+            ),
         )
-    if args.verbose:
-        print(f"User prompt: {args.user_prompt}")
-        print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
-        print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
-    print(response.text)
+        for candidate in response.candidates:
+            messages.append(candidate.content)
+
+        
+
+        if response.usage_metadata is None:
+            raise RuntimeError(
+                "No response from api."
+            )
+        if args.verbose:
+            print(f"User prompt: {args.user_prompt}")
+            print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
+            print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
+
+        
+    
+        if not response.function_calls:
+            print(response.text)
+            break;
+        else:
+            function_responses = []
+            
+            for function_call in response.function_calls:
+            
+
+                function_call_result = call_function(function_call, args.verbose)
+                
+                
+                if not function_call_result.parts:
+                    raise Exception("empty parts")
+                if function_call_result.parts[0].function_response is None:
+                    raise Exception("no parts in function call result")
+                if function_call_result.parts[0].function_response.response is None:
+                    raise Exception("no response")
+                if args.verbose:
+                    print(f'-> {function_call_result.parts[0].function_response.response}')
+
+                function_responses.append(function_call_result.parts[0])
+            messages.append(types.Content(role="user", parts=function_responses))
+    else:
+        print("Max iterations reached without a final response")
+        sys.exit(1)
+        
+
 if __name__ == "__main__":
     main()
